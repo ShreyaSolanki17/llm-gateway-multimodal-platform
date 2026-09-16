@@ -59,7 +59,7 @@ A production-oriented LLM Gateway & Multimodal Inference Platform built to demon
 - [x] **Milestone 0 — Project Definition & Repository Setup**
 - [x] **Milestone 1 — FastAPI LLM Gateway**
 - [x] **Milestone 2 — Model Provider Abstraction**
-- [ ] Milestone 3 — Model Router
+- [x] **Milestone 3 — Model Router**
 - [ ] Milestone 4 — vLLM Model Serving
 - [ ] Milestone 5 — Token, Latency & Cost Tracking
 - [ ] Milestone 6 — Semantic Cache

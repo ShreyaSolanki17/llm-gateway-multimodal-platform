@@ -5,6 +5,9 @@ from app.providers.mock import MockLLMProvider
 from app.core.logging import logger
 
 
+from app.providers.openai_provider import OpenAICompatibleProvider
+
+
 class ProviderRegistry:
     """Central registry mapping models to registered LLM Providers."""
 
@@ -12,8 +15,9 @@ class ProviderRegistry:
         self._providers: Dict[str, BaseLLMProvider] = {}
         self._model_to_provider: Dict[str, BaseLLMProvider] = {}
         self._fallback_provider: BaseLLMProvider = MockLLMProvider()
-        # Register default fallback provider
+        # Register default fallback & standard providers
         self.register_provider(self._fallback_provider)
+        self.register_provider(OpenAICompatibleProvider())
 
     def register_provider(self, provider: BaseLLMProvider) -> None:
         """Register a provider and index all models supported by it."""

@@ -1,10 +1,9 @@
 import pytest
-import httpx
 from fastapi.testclient import TestClient
 
 from app.providers.mock import MockLLMProvider
 from app.providers.openai_provider import OpenAICompatibleProvider
-from app.providers.registry import ProviderRegistry, provider_registry
+from app.providers.registry import ProviderRegistry
 from app.providers.exceptions import ProviderAPIError, ProviderTimeoutError
 from app.schemas.chat import ChatCompletionRequest, ChatMessage
 
