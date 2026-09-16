@@ -6,6 +6,7 @@ from app.core.logging import logger
 
 
 from app.providers.openai_provider import OpenAICompatibleProvider
+from app.providers.vllm_provider import VLLMProvider
 
 
 class ProviderRegistry:
@@ -18,6 +19,7 @@ class ProviderRegistry:
         # Register default fallback & standard providers
         self.register_provider(self._fallback_provider)
         self.register_provider(OpenAICompatibleProvider())
+        self.register_provider(VLLMProvider())
 
     def register_provider(self, provider: BaseLLMProvider) -> None:
         """Register a provider and index all models supported by it."""

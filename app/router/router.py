@@ -16,8 +16,8 @@ class ModelRouter:
         self.analyzer = RequestAnalyzer()
 
         # Model tiers
-        self.simple_tier_models = ["default-model", "gpt-4o-mini", "mock-gpt-4o"]
-        self.complex_tier_models = ["mock-claude-3-5-sonnet", "mock-gpt-4o", "gpt-4o"]
+        self.simple_tier_models = ["vllm-local", settings.VLLM_MODEL_NAME, "default-model", "gpt-4o-mini", "mock-gpt-4o"]
+        self.complex_tier_models = [settings.VLLM_MODEL_NAME, "mock-claude-3-5-sonnet", "mock-gpt-4o", "gpt-4o"]
         self.vision_tier_models = ["mock-gpt-4o", "gpt-4o"]
         self.fallback_tier_models = ["default-model"]
 
