@@ -57,7 +57,7 @@ A production-oriented LLM Gateway & Multimodal Inference Platform built to demon
 ## Milestone Status
 
 - [x] **Milestone 0 — Project Definition & Repository Setup**
-- [ ] Milestone 1 — FastAPI LLM Gateway
+- [x] **Milestone 1 — FastAPI LLM Gateway**
 - [ ] Milestone 2 — Model Provider Abstraction
 - [ ] Milestone 3 — Model Router
 - [ ] Milestone 4 — vLLM Model Serving
@@ -104,21 +104,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Configuration
-
-Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-```
-
 ### Running the Application
 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-Access API docs at `http://localhost:8000/docs` or health endpoint at `http://localhost:8000/health`.
+Access API docs at `http://localhost:8000/docs`, health check at `http://localhost:8000/health`, or send chat completions to `http://localhost:8000/v1/chat/completions`.
 
 ### Running Tests
 

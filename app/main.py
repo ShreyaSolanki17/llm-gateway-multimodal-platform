@@ -1,8 +1,17 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+
 from app.config import settings
 from app.core.logging import logger
+from app.core.middleware import RequestIDMiddleware
+from app.core.exceptions import (
+    GatewayException,
+    gateway_exception_handler,
+    validation_exception_handler,
+)
 from app.api.health import router as health_router
+from app.api.v1.chat import router as chat_router
 
 
 @asynccontextmanager
@@ -19,8 +28,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Include routers
+# Add Middleware
+app.add_middleware(RequestIDMiddleware)
+
+# Add Exception Handlers
+app.add_exception_handler(GatewayException, gateway_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+
+# Include Routers
 app.include_router(health_router)
+app.include_router(chat_router)
 
 
 @app.get("/")
@@ -29,4 +46,5 @@ async def root():
         "message": f"Welcome to {settings.APP_NAME}",
         "docs": "/docs",
         "health": "/health",
+        "chat": "/v1/chat/completions",
     }
