@@ -1,11 +1,15 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.providers.mock import MockLLMProvider
 from app.providers.openai_provider import OpenAICompatibleProvider
 from app.providers.registry import ProviderRegistry
+from app.providers.vllm_provider import VLLMProvider
 from app.providers.exceptions import ProviderAPIError, ProviderTimeoutError
 from app.schemas.chat import ChatCompletionRequest, ChatMessage
+
+UNREACHABLE_URL = "http://10.255.255.1:81/v1"
 
 
 @pytest.mark.asyncio
@@ -47,6 +51,39 @@ async def test_openai_provider_timeout(monkeypatch):
 
     with pytest.raises((ProviderTimeoutError, ProviderAPIError)):
         await provider.generate(request)
+
+
+@pytest.mark.asyncio
+async def test_vllm_provider_simulates_response_when_unreachable():
+    provider = VLLMProvider(api_base=UNREACHABLE_URL, timeout=0.5)
+    request = ChatCompletionRequest(
+        model="vllm-local",
+        messages=[ChatMessage(role="user", content="Hello vLLM")],
+    )
+
+    response = await provider.generate(request)
+    assert response.model == "vllm-local"
+    assert "Simulated local inference" in response.choices[0].message.content
+    assert response.usage.total_tokens > 0
+
+
+@pytest.mark.asyncio
+async def test_vllm_provider_raises_when_simulation_disabled(monkeypatch):
+    monkeypatch.setattr(settings, "VLLM_SIMULATE_LOCAL", False)
+    provider = VLLMProvider(api_base=UNREACHABLE_URL, timeout=0.5)
+    request = ChatCompletionRequest(
+        model="vllm-local",
+        messages=[ChatMessage(role="user", content="Hello vLLM")],
+    )
+
+    with pytest.raises((ProviderTimeoutError, ProviderAPIError)):
+        await provider.generate(request)
+
+
+@pytest.mark.asyncio
+async def test_vllm_provider_health_check_false_when_unreachable():
+    provider = VLLMProvider(api_base=UNREACHABLE_URL, timeout=0.5)
+    assert await provider.health_check() is False
 
 
 def test_chat_endpoint_with_provider_registry(client: TestClient):

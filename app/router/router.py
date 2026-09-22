@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+from app.config import settings
 from app.router.schemas import ComplexityLevel, RequestType, RoutingDecision
 from app.router.analyzer import RequestAnalyzer
 from app.providers.registry import ProviderRegistry, provider_registry

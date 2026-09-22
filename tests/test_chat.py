@@ -64,7 +64,7 @@ def test_chat_endpoint_invalid_model_fallback(client: TestClient):
 
     data = response.json()
     assert data["object"] == "chat.completion"
-    assert "MockProvider" in data["choices"][0]["message"]["content"]
+    assert "vLLM Engine" in data["choices"][0]["message"]["content"]
 
 
 def test_chat_endpoint_invalid_parameters(client: TestClient):

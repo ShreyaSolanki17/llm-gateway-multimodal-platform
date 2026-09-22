@@ -52,14 +52,14 @@ def test_router_routing_decisions():
     simple_req = ChatCompletionRequest(model="auto", messages=[ChatMessage(role="user", content="Hello")])
     d1 = router.determine_route(simple_req)
     assert d1.complexity == ComplexityLevel.SIMPLE
-    assert d1.selected_model == "default-model"
+    assert d1.selected_model == "vllm-local"
 
     # 2. Complex request -> complex model
     complex_text = "analyze step by step " + ("token " * 100)
     complex_req = ChatCompletionRequest(model="auto", messages=[ChatMessage(role="user", content=complex_text)])
     d2 = router.determine_route(complex_req)
     assert d2.complexity == ComplexityLevel.COMPLEX
-    assert d2.selected_model in ["mock-claude-3-5-sonnet", "mock-gpt-4o"]
+    assert d2.selected_model in router.complex_tier_models
 
     # 3. Explicit model override
     explicit_req = ChatCompletionRequest(model="mock-gpt-4o", messages=[ChatMessage(role="user", content="Hello")])
