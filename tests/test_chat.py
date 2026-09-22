@@ -20,6 +20,8 @@ def test_chat_completion_success(client: TestClient):
 
     assert response.status_code == 200
     assert response.headers.get("X-Request-ID") == custom_request_id
+    assert float(response.headers.get("X-Response-Latency-Ms")) >= 0
+    assert float(response.headers.get("X-Estimated-Cost-USD")) > 0
 
     data = response.json()
     assert data["object"] == "chat.completion"

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 from app.router.analyzer import RequestAnalyzer
 from app.router.schemas import ComplexityLevel, RequestType
 from app.router.router import ModelRouter
-from app.schemas.chat import ChatCompletionRequest, ChatMessage
+from app.schemas.chat import ChatCompletionRequest, ChatMessage, UsageInfo
 from app.providers.registry import ProviderRegistry
 from app.providers.mock import MockLLMProvider
 from app.providers.exceptions import ProviderAPIError
@@ -65,6 +65,23 @@ def test_router_routing_decisions():
     explicit_req = ChatCompletionRequest(model="mock-gpt-4o", messages=[ChatMessage(role="user", content="Hello")])
     d3 = router.determine_route(explicit_req)
     assert d3.selected_model == "mock-gpt-4o"
+
+
+def test_router_calculate_cost_from_real_usage():
+    registry = ProviderRegistry()
+    registry.register_provider(MockLLMProvider())
+    router = ModelRouter(registry=registry)
+
+    # mock-gpt-4o: $0.0025 / 1k input tokens, $0.0100 / 1k output tokens
+    usage = UsageInfo(prompt_tokens=1000, completion_tokens=500, total_tokens=1500)
+    cost = router.calculate_cost("mock-gpt-4o", usage)
+    assert cost == pytest.approx(0.0025 + 0.005)
+
+
+def test_router_calculate_cost_unknown_model_returns_zero():
+    router = ModelRouter(registry=ProviderRegistry())
+    usage = UsageInfo(prompt_tokens=1000, completion_tokens=500, total_tokens=1500)
+    assert router.calculate_cost("nonexistent-model", usage) == 0.0
 
 
 @pytest.mark.asyncio

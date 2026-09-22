@@ -5,7 +5,7 @@ from app.router.analyzer import RequestAnalyzer
 from app.providers.registry import ProviderRegistry, provider_registry
 from app.providers.base import BaseLLMProvider, ModelMetadata
 from app.providers.exceptions import ProviderException
-from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
+from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse, UsageInfo
 from app.core.logging import logger
 
 
@@ -79,6 +79,15 @@ class ModelRouter:
             fallback_model=fallback,
             estimated_cost_usd=meta.cost_per_1k_input_tokens * 0.1,
         )
+
+    def calculate_cost(self, model_name: str, usage: UsageInfo) -> float:
+        """Compute actual cost in USD from real token usage and the model's configured rate."""
+        meta = self.registry.list_all_models().get(model_name)
+        if not meta:
+            return 0.0
+        input_cost = (usage.prompt_tokens / 1000) * meta.cost_per_1k_input_tokens
+        output_cost = (usage.completion_tokens / 1000) * meta.cost_per_1k_output_tokens
+        return input_cost + output_cost
 
     async def execute_with_fallback(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         """Route and execute request with automatic model fallback on provider failures."""
