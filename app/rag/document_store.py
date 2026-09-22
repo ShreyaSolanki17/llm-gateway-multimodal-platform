@@ -4,8 +4,12 @@ from typing import List, Optional
 from app.cache.embeddings import EmbeddingClient
 from app.config import settings
 from app.core.logging import logger
-from app.core.similarity import cosine_similarity
+from app.core.similarity import cosine_similarity, keyword_overlap
 from app.rag.chunker import chunk_text
+
+# ponytail: fixed blend weight rather than a setting -- keyword overlap is a
+# tie-breaker on top of embedding similarity, not something deployments tune.
+_KEYWORD_BOOST_WEIGHT = 0.2
 
 
 @dataclass
@@ -57,12 +61,16 @@ class DocumentStore:
             return []
 
         k = top_k if top_k is not None else settings.RAG_TOP_K
-        scored = sorted(
-            self._chunks,
-            key=lambda c: cosine_similarity(query_embedding, c.embedding),
+        relevant = [
+            (c, similarity)
+            for c in self._chunks
+            if (similarity := cosine_similarity(query_embedding, c.embedding)) >= settings.RAG_MIN_SIMILARITY
+        ]
+        relevant.sort(
+            key=lambda item: item[1] + _KEYWORD_BOOST_WEIGHT * keyword_overlap(query, item[0].text),
             reverse=True,
         )
-        return [c.text for c in scored[:k]]
+        return [c.text for c, _ in relevant[:k]]
 
 
 # Global Singleton Document Store Instance

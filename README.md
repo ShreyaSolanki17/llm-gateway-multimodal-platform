@@ -135,7 +135,7 @@ Read by almost every file above: `app/config.py` (settings singleton loaded from
 - [x] **Milestone 6 — Semantic Cache**
 - [x] **Milestone 7 — Multimodal Input Pipeline**
 - [x] **Milestone 8 — RAG Pipeline**
-- [ ] Milestone 9 — Advanced Retrieval
+- [x] **Milestone 9 — Advanced Retrieval**
 - [ ] Milestone 10 — Custom PostgreSQL MCP Server
 - [ ] Milestone 11 — Custom Document MCP Server
 - [ ] Milestone 12 — MCP Client Integration

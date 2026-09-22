@@ -49,6 +49,36 @@ async def test_document_store_retrieve_empty_store_returns_nothing():
 
 
 @pytest.mark.asyncio
+async def test_document_store_filters_chunks_below_similarity_floor():
+    fake_client = FakeEmbeddingClient(
+        vectors_by_text={
+            "The weather today is sunny.": [0.0, 1.0],
+            "What is the refund policy?": [1.0, 0.0],
+        }
+    )
+    store = DocumentStore(embedding_client=fake_client)
+    await store.ingest_document("The weather today is sunny.")
+    assert await store.retrieve("What is the refund policy?") == []
+
+
+@pytest.mark.asyncio
+async def test_document_store_reranks_ties_by_keyword_overlap():
+    fake_client = FakeEmbeddingClient(
+        vectors_by_text={
+            "General store policies apply.": [0.9, 0.1],
+            "Our refund policy for electronics is 30 days.": [0.9, 0.1],
+            "refund policy for electronics": [1.0, 0.0],
+        }
+    )
+    store = DocumentStore(embedding_client=fake_client)
+    await store.ingest_document("General store policies apply.")
+    await store.ingest_document("Our refund policy for electronics is 30 days.")
+
+    results = await store.retrieve("refund policy for electronics", top_k=2)
+    assert results[0] == "Our refund policy for electronics is 30 days."
+
+
+@pytest.mark.asyncio
 async def test_document_store_embedding_failure_degrades_gracefully():
     store = DocumentStore(embedding_client=FakeEmbeddingClient(should_fail=True))
     document_id, chunks_created = await store.ingest_document("Some content that will fail to embed.")

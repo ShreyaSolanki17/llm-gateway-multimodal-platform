@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     RAG_CHUNK_SIZE: int = 200
     RAG_CHUNK_OVERLAP: int = 50
     RAG_TOP_K: int = 3
+    RAG_MIN_SIMILARITY: float = 0.3
 
     model_config = SettingsConfigDict(
         env_file=".env",
