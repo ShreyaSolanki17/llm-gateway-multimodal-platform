@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +18,14 @@ class Settings(BaseSettings):
     VLLM_TIMEOUT: float = 30.0
     VLLM_ENABLED: bool = True
     VLLM_SIMULATE_LOCAL: bool = True  # Handles local low VRAM (GTX 1650) development
+
+    # OpenAI Configuration
+    OPENAI_API_KEY: Optional[str] = None
+
+    # Semantic Cache Configuration
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    SEMANTIC_CACHE_ENABLED: bool = True
+    SEMANTIC_CACHE_SIMILARITY_THRESHOLD: float = 0.95
 
     model_config = SettingsConfigDict(
         env_file=".env",

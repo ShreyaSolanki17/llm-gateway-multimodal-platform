@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+from app.config import settings
 from app.providers.base import BaseLLMProvider, ModelMetadata
 from app.providers.exceptions import ProviderNotFoundError
 from app.providers.mock import MockLLMProvider
@@ -18,7 +19,7 @@ class ProviderRegistry:
         self._fallback_provider: BaseLLMProvider = MockLLMProvider()
         # Register default fallback & standard providers
         self.register_provider(self._fallback_provider)
-        self.register_provider(OpenAICompatibleProvider())
+        self.register_provider(OpenAICompatibleProvider(api_key=settings.OPENAI_API_KEY))
         self.register_provider(VLLMProvider())
 
     def register_provider(self, provider: BaseLLMProvider) -> None:

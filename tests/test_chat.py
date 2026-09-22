@@ -1,5 +1,9 @@
 import uuid
 from fastapi.testclient import TestClient
+from app.config import settings
+import app.api.v1.chat as chat_module
+from app.cache.semantic_cache import SemanticCache
+from tests.test_semantic_cache import FakeEmbeddingClient
 
 
 def test_chat_completion_success(client: TestClient):
@@ -87,6 +91,33 @@ def test_chat_endpoint_invalid_parameters(client: TestClient):
     }
     res_tokens = client.post("/v1/chat/completions", json=payload_tokens)
     assert res_tokens.status_code == 422
+
+
+def test_chat_endpoint_semantic_cache_hit(client: TestClient, monkeypatch):
+    monkeypatch.setattr(settings, "SEMANTIC_CACHE_ENABLED", True)
+    fake_client = FakeEmbeddingClient(
+        vectors_by_text={
+            "What is the capital of France?": [1.0, 0.0, 0.0],
+            "what is the capital of france?": [0.99, 0.01, 0.0],
+        }
+    )
+    monkeypatch.setattr(chat_module, "semantic_cache", SemanticCache(embedding_client=fake_client, threshold=0.95))
+
+    first = client.post(
+        "/v1/chat/completions",
+        json={"model": "mock-gpt-4o", "messages": [{"role": "user", "content": "What is the capital of France?"}]},
+    )
+    assert first.status_code == 200
+    assert first.headers.get("X-Cache-Hit") == "false"
+
+    second = client.post(
+        "/v1/chat/completions",
+        json={"model": "mock-gpt-4o", "messages": [{"role": "user", "content": "what is the capital of france?"}]},
+    )
+    assert second.status_code == 200
+    assert second.headers.get("X-Cache-Hit") == "true"
+    assert second.headers.get("X-Estimated-Cost-USD") == "0.000000"
+    assert second.json()["choices"][0]["message"]["content"] == first.json()["choices"][0]["message"]["content"]
 
 
 def test_chat_endpoint_failing_provider_fallback(client: TestClient):
