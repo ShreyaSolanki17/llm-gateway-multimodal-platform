@@ -1,9 +1,9 @@
-import math
 from dataclasses import dataclass
 from typing import List, Optional
 from app.cache.embeddings import EmbeddingClient
 from app.config import settings
 from app.core.logging import logger
+from app.core.similarity import cosine_similarity
 from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
 
 
@@ -12,15 +12,6 @@ class CacheEntry:
     prompt: str
     embedding: List[float]
     response: ChatCompletionResponse
-
-
-def _cosine_similarity(a: List[float], b: List[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
 
 
 class SemanticCache:
@@ -55,7 +46,7 @@ class SemanticCache:
         best_score = 0.0
         best_entry: Optional[CacheEntry] = None
         for entry in self._entries:
-            score = _cosine_similarity(query_embedding, entry.embedding)
+            score = cosine_similarity(query_embedding, entry.embedding)
             if score > best_score:
                 best_score = score
                 best_entry = entry

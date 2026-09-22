@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     SEMANTIC_CACHE_ENABLED: bool = True
     SEMANTIC_CACHE_SIMILARITY_THRESHOLD: float = 0.95
 
+    # RAG Pipeline Configuration
+    RAG_CHUNK_SIZE: int = 200
+    RAG_CHUNK_OVERLAP: int = 50
+    RAG_TOP_K: int = 3
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

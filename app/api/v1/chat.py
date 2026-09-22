@@ -2,6 +2,7 @@ import time
 from fastapi import APIRouter, Request, Response, status
 from app.cache.semantic_cache import semantic_cache
 from app.config import settings
+from app.rag.augment import augment_with_context
 from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
 from app.router.router import model_router
 from app.core.logging import logger
@@ -31,8 +32,11 @@ async def create_chat_completion(
 
     start_time = time.perf_counter()
 
-    # Check the semantic cache before routing to a real model
-    if settings.SEMANTIC_CACHE_ENABLED:
+    # Semantic cache is bypassed for RAG requests: a cached answer may have been
+    # grounded in document context that no longer reflects the current knowledge base.
+    use_cache = settings.SEMANTIC_CACHE_ENABLED and not payload.use_rag
+
+    if use_cache:
         cached_result = await semantic_cache.lookup(payload)
         if cached_result is not None:
             latency_ms = (time.perf_counter() - start_time) * 1000
@@ -42,8 +46,12 @@ async def create_chat_completion(
             logger.info(f"Chat completion served from semantic cache | latency_ms={latency_ms:.2f} | Request-ID: {request_id}")
             return cached_result
 
+    routed_payload = payload
+    if payload.use_rag:
+        routed_payload = await augment_with_context(payload)
+
     # Route and execute request through ModelRouter with automatic fallback
-    result = await model_router.execute_with_fallback(payload)
+    result = await model_router.execute_with_fallback(routed_payload)
     latency_ms = (time.perf_counter() - start_time) * 1000
     cost_usd = model_router.calculate_cost(result.model, result.usage)
 
@@ -57,7 +65,7 @@ async def create_chat_completion(
         f"cost_usd={cost_usd:.6f} | latency_ms={latency_ms:.2f} | Request-ID: {request_id}"
     )
 
-    if settings.SEMANTIC_CACHE_ENABLED:
+    if use_cache:
         await semantic_cache.store(payload, result)
 
     return result

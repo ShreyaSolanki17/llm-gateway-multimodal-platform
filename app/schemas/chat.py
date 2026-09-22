@@ -65,6 +65,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     max_tokens: Optional[int] = Field(default=1000, gt=0, description="Maximum tokens to generate")
     stream: Optional[bool] = Field(default=False, description="Whether to stream back partial responses")
+    use_rag: Optional[bool] = Field(default=False, description="Augment the prompt with retrieved context from ingested documents")
 
 
 class UsageInfo(BaseModel):
