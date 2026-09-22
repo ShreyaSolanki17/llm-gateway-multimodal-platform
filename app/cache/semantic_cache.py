@@ -39,7 +39,7 @@ class SemanticCache:
 
     @staticmethod
     def _extract_prompt(request: ChatCompletionRequest) -> str:
-        return next((m.content for m in reversed(request.messages) if m.role == "user"), "")
+        return next((m.get_text() for m in reversed(request.messages) if m.role == "user"), "")
 
     async def lookup(self, request: ChatCompletionRequest) -> Optional[ChatCompletionResponse]:
         prompt = self._extract_prompt(request)

@@ -49,12 +49,12 @@ class MockLLMProvider(BaseLLMProvider):
 
     async def generate(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         last_user_msg = next(
-            (m.content for m in reversed(request.messages) if m.role == "user"),
+            (m.get_text() for m in reversed(request.messages) if m.role == "user"),
             "Hello",
         )
         content = f"[MockProvider ({request.model})] Responded to: '{last_user_msg}'"
 
-        prompt_tokens = sum(len(m.content.split()) for m in request.messages)
+        prompt_tokens = sum(len(m.get_text().split()) for m in request.messages)
         completion_tokens = len(content.split())
         total_tokens = prompt_tokens + completion_tokens
 

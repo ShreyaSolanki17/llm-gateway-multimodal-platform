@@ -3,10 +3,25 @@ from unittest.mock import AsyncMock
 from app.router.analyzer import RequestAnalyzer
 from app.router.schemas import ComplexityLevel, RequestType
 from app.router.router import ModelRouter
-from app.schemas.chat import ChatCompletionRequest, ChatMessage, UsageInfo
+from app.schemas.chat import ChatCompletionRequest, ChatMessage, ContentPart, ImageURL, UsageInfo
 from app.providers.registry import ProviderRegistry
 from app.providers.mock import MockLLMProvider
 from app.providers.exceptions import ProviderAPIError
+
+TINY_PNG_DATA_URI = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+    "+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+
+
+def _image_message(text: str) -> ChatMessage:
+    return ChatMessage(
+        role="user",
+        content=[
+            ContentPart(type="text", text=text),
+            ContentPart(type="image_url", image_url=ImageURL(url=TINY_PNG_DATA_URI)),
+        ],
+    )
 
 
 def test_analyzer_simple_prompt():
@@ -36,10 +51,20 @@ def test_analyzer_vision_prompt():
     analyzer = RequestAnalyzer()
     req = ChatCompletionRequest(
         model="auto",
-        messages=[ChatMessage(role="user", content="Please describe this image: [image] data:image/png...")],
+        messages=[_image_message("Please describe this image")],
     )
     complexity, req_type = analyzer.analyze(req)
     assert req_type == RequestType.VISION
+
+
+def test_analyzer_text_only_prompt_is_not_vision():
+    analyzer = RequestAnalyzer()
+    req = ChatCompletionRequest(
+        model="auto",
+        messages=[ChatMessage(role="user", content="Please describe this image in words, no picture attached")],
+    )
+    _, req_type = analyzer.analyze(req)
+    assert req_type == RequestType.TEXT
 
 
 def test_router_routing_decisions():
@@ -110,7 +135,7 @@ def test_router_vision_model_selection():
 
     vision_req = ChatCompletionRequest(
         model="auto",
-        messages=[ChatMessage(role="user", content="Analyze image: [image] data:image/png...")],
+        messages=[_image_message("Analyze this image")],
     )
     decision = router.determine_route(vision_req)
     assert decision.request_type == RequestType.VISION

@@ -21,13 +21,11 @@ class RequestAnalyzer:
     ]
 
     def analyze(self, request: ChatCompletionRequest) -> Tuple[ComplexityLevel, RequestType]:
-        # Extract combined text of user messages
-        user_texts = [m.content for m in request.messages if m.role == "user"]
-        full_text = " ".join(user_texts)
+        user_messages = [m for m in request.messages if m.role == "user"]
+        full_text = " ".join(m.get_text() for m in user_messages)
 
-        # 1. Detect Request Type (Vision vs Text)
-        # (In Milestone 7 we'll inspect base64/URL images, here we check text indicators)
-        is_vision = any("image:" in t.lower() or "[image]" in t.lower() for t in user_texts)
+        # 1. Detect Request Type (Vision vs Text) from actual image_url content parts
+        is_vision = any(m.has_image() for m in user_messages)
         req_type = RequestType.VISION if is_vision else RequestType.TEXT
 
         # 2. Analyze Complexity

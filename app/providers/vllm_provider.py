@@ -94,7 +94,7 @@ class VLLMProvider(BaseLLMProvider):
     def _generate_simulated_response(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         """Generates simulated vLLM response when local hardware (GTX 1650 4GB VRAM) operates without live GPU daemon."""
         last_user_msg = next(
-            (m.content for m in reversed(request.messages) if m.role == "user"),
+            (m.get_text() for m in reversed(request.messages) if m.role == "user"),
             "Hello",
         )
         content = (
@@ -102,7 +102,7 @@ class VLLMProvider(BaseLLMProvider):
             f"Hardware profile: GTX 1650 4GB VRAM compatible mode."
         )
 
-        prompt_tokens = sum(len(m.content.split()) for m in request.messages)
+        prompt_tokens = sum(len(m.get_text().split()) for m in request.messages)
         completion_tokens = len(content.split())
         total_tokens = prompt_tokens + completion_tokens
 

@@ -29,6 +29,19 @@ async def gateway_exception_handler(request: Request, exc: GatewayException) -> 
     )
 
 
+def _json_safe_errors(errors: list) -> list:
+    """Pydantic error dicts can carry a raw exception object in ctx.error (from custom
+    field_validators), which the default JSON encoder can't serialize. Stringify it."""
+    cleaned = []
+    for err in errors:
+        err = dict(err)
+        ctx = err.get("ctx")
+        if isinstance(ctx, dict) and "error" in ctx:
+            err["ctx"] = {**ctx, "error": str(ctx["error"])}
+        cleaned.append(err)
+    return cleaned
+
+
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     request_id = getattr(request.state, "request_id", "N/A")
     logger.warning(f"ValidationError: {exc.errors()} | Request-ID: {request_id}")
@@ -38,7 +51,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": {
                 "message": "Invalid request payload",
                 "type": "validation_error",
-                "details": exc.errors(),
+                "details": _json_safe_errors(exc.errors()),
                 "request_id": request_id,
             }
         },

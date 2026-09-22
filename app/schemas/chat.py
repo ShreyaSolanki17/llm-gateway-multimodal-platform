@@ -1,12 +1,62 @@
+import base64
+import binascii
+import re
 import time
 import uuid
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Literal, Optional, Union
+from pydantic import BaseModel, Field, field_validator
+
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5MB decoded image cap
+DATA_URI_PATTERN = re.compile(r"^data:image/(png|jpeg|jpg|gif|webp);base64,(.+)$", re.IGNORECASE | re.DOTALL)
+
+
+class ImageURL(BaseModel):
+    url: str = Field(..., description="Either an http(s) URL or a data:image/...;base64,... URI")
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        if v.startswith("http://") or v.startswith("https://"):
+            return v
+
+        match = DATA_URI_PATTERN.match(v)
+        if not match:
+            raise ValueError("image_url.url must be an http(s) URL or a data:image/...;base64,... URI")
+
+        try:
+            decoded = base64.b64decode(match.group(2), validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError("image_url.url contains invalid base64 image data")
+
+        if len(decoded) > MAX_IMAGE_BYTES:
+            raise ValueError(f"image exceeds maximum size of {MAX_IMAGE_BYTES} bytes")
+
+        return v
+
+
+class ContentPart(BaseModel):
+    type: Literal["text", "image_url"]
+    text: Optional[str] = None
+    image_url: Optional[ImageURL] = None
 
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="Role of the message sender (e.g. system, user, assistant)")
-    content: str = Field(..., description="Content of the message")
+    content: Union[str, List[ContentPart]] = Field(
+        ..., description="Message content: plain text, or a list of text/image parts"
+    )
+
+    def get_text(self) -> str:
+        """Extract the text portion of this message, ignoring any image parts."""
+        if isinstance(self.content, str):
+            return self.content
+        return " ".join(part.text for part in self.content if part.type == "text" and part.text)
+
+    def has_image(self) -> bool:
+        """Whether this message carries at least one image part."""
+        if isinstance(self.content, str):
+            return False
+        return any(part.type == "image_url" for part in self.content)
 
 
 class ChatCompletionRequest(BaseModel):
