@@ -136,8 +136,8 @@ Read by almost every file above: `app/config.py` (settings singleton loaded from
 - [x] **Milestone 7 — Multimodal Input Pipeline**
 - [x] **Milestone 8 — RAG Pipeline**
 - [x] **Milestone 9 — Advanced Retrieval**
-- [ ] Milestone 10 — Custom PostgreSQL MCP Server
-- [ ] Milestone 11 — Custom Document MCP Server
+- [x] **Milestone 10 — Custom PostgreSQL MCP Server**
+- [x] **Milestone 11 — Custom Document MCP Server**
 - [ ] Milestone 12 — MCP Client Integration
 - [ ] Milestone 13 — Security & Guardrails
 - [ ] Milestone 14 — Evaluation Framework
@@ -181,6 +181,22 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 Access API docs at `http://localhost:8000/docs`, health check at `http://localhost:8000/health`, or send chat completions to `http://localhost:8000/v1/chat/completions`.
+
+### Running the PostgreSQL MCP Server
+
+A separate process from the gateway — exposes read-only database access (`query_database`, `list_schema`) as MCP tools over stdio, backed by SQLite for now (`MCP_DB_PATH` in `.env`):
+
+```bash
+python -m app.mcp.postgres_server
+```
+
+### Running the Document MCP Server
+
+Also a separate process — exposes `search_documents` and `ingest_document` as MCP tools over the same in-memory `DocumentStore` the chat endpoint's `use_rag` flag reads from:
+
+```bash
+python -m app.mcp.document_server
+```
 
 ### Running Tests
 

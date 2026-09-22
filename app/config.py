@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 3
     RAG_MIN_SIMILARITY: float = 0.3
 
+    # PostgreSQL MCP Server Configuration (SQLite-backed for now; swaps to
+    # real Postgres at Milestone 17 once Docker infra exists)
+    MCP_DB_PATH: str = "./data/mcp_gateway.db"
+    MCP_QUERY_ROW_LIMIT: int = 100
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
