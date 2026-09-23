@@ -2,6 +2,7 @@ import time
 from fastapi import APIRouter, Depends, Request, Response, status
 from app.cache.semantic_cache import semantic_cache
 from app.config import settings
+from app.core.metrics import metrics_registry
 from app.core.rate_limit import enforce_rate_limit
 from app.core.security import verify_api_key
 from app.rag.augment import augment_with_context
@@ -46,6 +47,7 @@ async def create_chat_completion(
             response.headers["X-Response-Latency-Ms"] = f"{latency_ms:.2f}"
             response.headers["X-Estimated-Cost-USD"] = "0.000000"
             logger.info(f"Chat completion served from semantic cache | latency_ms={latency_ms:.2f} | Request-ID: {request_id}")
+            metrics_registry.record_request(cached_result.model, latency_ms, 0.0, cache_hit=True)
             return cached_result
 
     routed_payload = payload
@@ -66,6 +68,7 @@ async def create_chat_completion(
         f"tokens(prompt={result.usage.prompt_tokens}, completion={result.usage.completion_tokens}, total={result.usage.total_tokens}) | "
         f"cost_usd={cost_usd:.6f} | latency_ms={latency_ms:.2f} | Request-ID: {request_id}"
     )
+    metrics_registry.record_request(result.model, latency_ms, cost_usd, cache_hit=False)
 
     if use_cache:
         await semantic_cache.store(payload, result)

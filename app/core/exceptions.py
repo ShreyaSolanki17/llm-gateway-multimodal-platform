@@ -2,6 +2,7 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from app.core.logging import logger
+from app.core.metrics import metrics_registry
 
 
 class GatewayException(Exception):
@@ -38,6 +39,7 @@ class EvaluationError(GatewayException):
 async def gateway_exception_handler(request: Request, exc: GatewayException) -> JSONResponse:
     request_id = getattr(request.state, "request_id", "N/A")
     logger.error(f"GatewayException [{exc.error_type}]: {exc.message} | Request-ID: {request_id}")
+    metrics_registry.record_error(exc.error_type)
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -66,6 +68,7 @@ def _json_safe_errors(errors: list) -> list:
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     request_id = getattr(request.state, "request_id", "N/A")
     logger.warning(f"ValidationError: {exc.errors()} | Request-ID: {request_id}")
+    metrics_registry.record_error("validation_error")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
