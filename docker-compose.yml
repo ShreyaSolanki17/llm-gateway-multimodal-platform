@@ -1,0 +1,36 @@
+services:
+  gateway:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - gateway-data:/app/data
+    restart: unless-stopped
+
+  # Not yet used by the app -- semantic cache, RAG store, and the MCP
+  # PostgreSQL server all currently run on in-memory/SQLite stand-ins
+  # (each marked with a "ponytail: swap at Milestone 17" comment). This
+  # container makes real Postgres+pgvector available; wiring the app code
+  # over to it is a separate, later change.
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: gateway
+      POSTGRES_DB: gateway
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  gateway-data:
+  postgres-data:

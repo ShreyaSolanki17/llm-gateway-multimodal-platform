@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environment
+.venv/
+venv/
+
+# Git
+.git/
+.gitignore
+
+# Environment variables and local data -- never bake secrets or local
+# databases into the image; env vars are injected at runtime instead
+.env
+data/
+*.db
+*.sqlite3
+
+# Editor/OS
+.idea/
+.vscode/
+*.swp
+
+# Docs
+README.md
