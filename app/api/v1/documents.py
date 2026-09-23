@@ -1,8 +1,10 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
+from app.core.rate_limit import enforce_rate_limit
+from app.core.security import verify_api_key
 from app.rag.document_store import document_store
 from app.schemas.documents import DocumentIngestRequest, DocumentIngestResponse
 
-router = APIRouter(prefix="/v1", tags=["Documents"])
+router = APIRouter(prefix="/v1", tags=["Documents"], dependencies=[Depends(enforce_rate_limit), Depends(verify_api_key)])
 
 
 @router.post("/documents", response_model=DocumentIngestResponse, status_code=status.HTTP_201_CREATED)

@@ -139,7 +139,7 @@ Read by almost every file above: `app/config.py` (settings singleton loaded from
 - [x] **Milestone 10 — Custom PostgreSQL MCP Server**
 - [x] **Milestone 11 — Custom Document MCP Server**
 - [x] **Milestone 12 — MCP Client Integration**
-- [ ] Milestone 13 — Security & Guardrails
+- [x] **Milestone 13 — Security & Guardrails**
 - [ ] Milestone 14 — Evaluation Framework
 - [ ] Milestone 15 — Observability
 - [ ] Milestone 16 — Cost & Latency Optimization
@@ -181,6 +181,8 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 Access API docs at `http://localhost:8000/docs`, health check at `http://localhost:8000/health`, or send chat completions to `http://localhost:8000/v1/chat/completions`.
+
+By default there's no authentication — set `GATEWAY_API_KEY` in `.env` to require `Authorization: Bearer <key>` on every `/v1/*` request (a startup warning is logged if it's left unset). Requests are also capped at `RATE_LIMIT_REQUESTS` per `RATE_LIMIT_WINDOW_SECONDS` per client, and payload size limits (`MAX_MESSAGES_PER_REQUEST`, `MAX_TOTAL_CONTENT_CHARS`, `MAX_DOCUMENT_CHARS`) reject pathologically large requests before they reach a model.
 
 ### Running the PostgreSQL MCP Server
 

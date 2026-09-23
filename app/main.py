@@ -18,6 +18,8 @@ from app.api.v1.documents import router as documents_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} in [{settings.ENVIRONMENT}] mode...")
+    if not settings.GATEWAY_API_KEY:
+        logger.warning("GATEWAY_API_KEY is not configured -- authentication is DISABLED. Set it before exposing this gateway.")
     yield
     logger.info(f"Shutting down {settings.APP_NAME}...")
 

@@ -14,6 +14,20 @@ class GatewayException(Exception):
         super().__init__(message)
 
 
+class AuthenticationError(GatewayException):
+    """Raised when a request is missing or has an invalid API key."""
+
+    def __init__(self, message: str = "Invalid or missing API key"):
+        super().__init__(message=message, status_code=status.HTTP_401_UNAUTHORIZED, error_type="authentication_error")
+
+
+class RateLimitExceededError(GatewayException):
+    """Raised when a client exceeds the configured request rate limit."""
+
+    def __init__(self, message: str = "Rate limit exceeded"):
+        super().__init__(message=message, status_code=status.HTTP_429_TOO_MANY_REQUESTS, error_type="rate_limit_exceeded")
+
+
 async def gateway_exception_handler(request: Request, exc: GatewayException) -> JSONResponse:
     request_id = getattr(request.state, "request_id", "N/A")
     logger.error(f"GatewayException [{exc.error_type}]: {exc.message} | Request-ID: {request_id}")

@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     MCP_DB_PATH: str = "./data/mcp_gateway.db"
     MCP_QUERY_ROW_LIMIT: int = 100
 
+    # Security & Guardrails Configuration
+    GATEWAY_API_KEY: Optional[str] = None  # unset = auth disabled (dev convenience; logs a startup warning)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_REQUESTS: int = 60
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
+    MAX_MESSAGES_PER_REQUEST: int = 50
+    MAX_TOTAL_CONTENT_CHARS: int = 50000
+    MAX_DOCUMENT_CHARS: int = 200000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

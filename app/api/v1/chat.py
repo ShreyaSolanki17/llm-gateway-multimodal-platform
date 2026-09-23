@@ -1,13 +1,15 @@
 import time
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from app.cache.semantic_cache import semantic_cache
 from app.config import settings
+from app.core.rate_limit import enforce_rate_limit
+from app.core.security import verify_api_key
 from app.rag.augment import augment_with_context
 from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
 from app.router.router import model_router
 from app.core.logging import logger
 
-router = APIRouter(prefix="/v1", tags=["Chat"])
+router = APIRouter(prefix="/v1", tags=["Chat"], dependencies=[Depends(enforce_rate_limit), Depends(verify_api_key)])
 
 
 @router.post(

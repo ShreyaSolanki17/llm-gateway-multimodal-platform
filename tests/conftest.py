@@ -12,6 +12,13 @@ def disable_semantic_cache(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def disable_rate_limit(monkeypatch):
+    """Prevent request-count state from leaking between tests (TestClient shares one
+    client identity), and keep existing tests from needing to worry about the limit."""
+    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+
+
+@pytest.fixture(autouse=True)
 def isolate_real_network_providers(monkeypatch):
     """Keep the real OpenAI-compatible provider from making a live network call in tests,
     even when a real API key is configured in the environment."""

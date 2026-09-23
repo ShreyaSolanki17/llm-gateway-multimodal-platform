@@ -4,7 +4,8 @@ import re
 import time
 import uuid
 from typing import List, Literal, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from app.config import settings
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5MB decoded image cap
 DATA_URI_PATTERN = re.compile(r"^data:image/(png|jpeg|jpg|gif|webp);base64,(.+)$", re.IGNORECASE | re.DOTALL)
@@ -61,11 +62,22 @@ class ChatMessage(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     model: str = Field(default="default-model", description="ID of the model to use")
-    messages: List[ChatMessage] = Field(..., min_length=1, description="List of messages in the conversation")
+    messages: List[ChatMessage] = Field(
+        ..., min_length=1, max_length=settings.MAX_MESSAGES_PER_REQUEST, description="List of messages in the conversation"
+    )
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     max_tokens: Optional[int] = Field(default=1000, gt=0, description="Maximum tokens to generate")
     stream: Optional[bool] = Field(default=False, description="Whether to stream back partial responses")
     use_rag: Optional[bool] = Field(default=False, description="Augment the prompt with retrieved context from ingested documents")
+
+    @model_validator(mode="after")
+    def _check_total_content_length(self):
+        total_chars = sum(len(m.get_text()) for m in self.messages)
+        if total_chars > settings.MAX_TOTAL_CONTENT_CHARS:
+            raise ValueError(
+                f"combined message content ({total_chars} chars) exceeds the {settings.MAX_TOTAL_CONTENT_CHARS} character limit"
+            )
+        return self
 
 
 class UsageInfo(BaseModel):
