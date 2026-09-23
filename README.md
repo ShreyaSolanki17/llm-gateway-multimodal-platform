@@ -138,7 +138,7 @@ Read by almost every file above: `app/config.py` (settings singleton loaded from
 - [x] **Milestone 9 — Advanced Retrieval**
 - [x] **Milestone 10 — Custom PostgreSQL MCP Server**
 - [x] **Milestone 11 — Custom Document MCP Server**
-- [ ] Milestone 12 — MCP Client Integration
+- [x] **Milestone 12 — MCP Client Integration**
 - [ ] Milestone 13 — Security & Guardrails
 - [ ] Milestone 14 — Evaluation Framework
 - [ ] Milestone 15 — Observability
@@ -196,6 +196,18 @@ Also a separate process — exposes `search_documents` and `ingest_document` as 
 
 ```bash
 python -m app.mcp.document_server
+```
+
+### Calling an MCP Server's Tools
+
+`app/mcp/client.py` provides a reusable `MCPClient` that spawns a server module as a subprocess and speaks the real MCP protocol over stdio — useful for scripting or verifying a server end-to-end. It is intentionally standalone: it is not wired into `/v1/chat/completions`, since giving the model a live tool-calling loop mid-request would make this gateway agentic, which is out of scope (see Core Distinction above).
+
+```python
+from app.mcp.client import MCPClient
+
+client = MCPClient("app.mcp.postgres_server")
+tools = await client.list_tools()                                  # ["query_database", "list_schema"]
+rows = await client.call_tool("query_database", {"sql": "SELECT 1"})
 ```
 
 ### Running Tests
