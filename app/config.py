@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     MAX_TOTAL_CONTENT_CHARS: int = 50000
     MAX_DOCUMENT_CHARS: int = 200000
 
+    # Evaluation Framework Configuration (LLM-as-a-Judge)
+    EVAL_JUDGE_MODEL: str = "gpt-4o"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

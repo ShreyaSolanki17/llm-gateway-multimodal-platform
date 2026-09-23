@@ -28,6 +28,13 @@ class RateLimitExceededError(GatewayException):
         super().__init__(message=message, status_code=status.HTTP_429_TOO_MANY_REQUESTS, error_type="rate_limit_exceeded")
 
 
+class EvaluationError(GatewayException):
+    """Raised when the LLM-as-a-Judge evaluator fails to produce a usable result."""
+
+    def __init__(self, message: str):
+        super().__init__(message=message, status_code=status.HTTP_502_BAD_GATEWAY, error_type="evaluation_error")
+
+
 async def gateway_exception_handler(request: Request, exc: GatewayException) -> JSONResponse:
     request_id = getattr(request.state, "request_id", "N/A")
     logger.error(f"GatewayException [{exc.error_type}]: {exc.message} | Request-ID: {request_id}")
