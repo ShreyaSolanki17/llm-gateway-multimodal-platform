@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+import json
+from typing import AsyncIterator, Dict, Optional
 import httpx
 from app.config import settings
 from app.providers.base import BaseLLMProvider, ModelMetadata
@@ -7,6 +8,9 @@ from app.schemas.chat import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatCompletionChoice,
+    ChatCompletionChunk,
+    ChatCompletionChunkChoice,
+    ChatCompletionChunkDelta,
     ChatMessage,
     UsageInfo,
 )
@@ -90,6 +94,79 @@ class VLLMProvider(BaseLLMProvider):
             if settings.VLLM_SIMULATE_LOCAL:
                 return self._generate_simulated_response(request)
             raise ProviderAPIError("vllm", f"vLLM inference server unreachable: {str(exc)}")
+
+    async def stream_generate(self, request: ChatCompletionRequest) -> AsyncIterator[ChatCompletionChunk]:
+        """Stream chat completion chunks from the vLLM server (SSE passthrough).
+
+        ponytail: falls back to a fully-simulated stream only on a failure
+        before any real chunk arrives (connect/timeout/HTTP error) -- a drop
+        mid-stream after real chunks have already been yielded is not
+        recovered, same as any other partial-stream failure would be.
+        """
+        url = f"{self._api_base}/chat/completions"
+        payload = request.model_dump(exclude_none=True)
+        payload["stream"] = True
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                async with client.stream("POST", url, json=payload) as response:
+                    if response.status_code != 200:
+                        body = await response.aread()
+                        raise ProviderAPIError(
+                            "vllm", f"vLLM server error HTTP {response.status_code}: {body.decode(errors='replace')}"
+                        )
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[len("data: "):].strip()
+                        if data == "[DONE]":
+                            break
+                        yield ChatCompletionChunk(**json.loads(data))
+        except (httpx.TimeoutException, ProviderTimeoutError):
+            logger.warning(f"vLLM server at '{self._api_base}' timed out after {self._timeout}s")
+            if settings.VLLM_SIMULATE_LOCAL:
+                async for chunk in self._stream_simulated_response(request):
+                    yield chunk
+                return
+            raise ProviderTimeoutError("vllm", self._timeout)
+        except (httpx.RequestError, ProviderAPIError) as exc:
+            logger.warning(f"vLLM server connection failed at '{self._api_base}': {str(exc)}")
+            if settings.VLLM_SIMULATE_LOCAL:
+                async for chunk in self._stream_simulated_response(request):
+                    yield chunk
+                return
+            raise ProviderAPIError("vllm", f"vLLM inference server unreachable: {str(exc)}")
+
+    async def _stream_simulated_response(self, request: ChatCompletionRequest) -> AsyncIterator[ChatCompletionChunk]:
+        """Streaming counterpart to _generate_simulated_response, for GPU-less local dev."""
+        last_user_msg = next(
+            (m.get_text() for m in reversed(request.messages) if m.role == "user"),
+            "Hello",
+        )
+        content = (
+            f"[vLLM Engine ({request.model})] Simulated local inference output for prompt: '{last_user_msg}'. "
+            f"Hardware profile: GTX 1650 4GB VRAM compatible mode."
+        )
+        words = content.split(" ")
+
+        for i, word in enumerate(words):
+            piece = word if i == 0 else f" {word}"
+            yield ChatCompletionChunk(
+                model=request.model,
+                choices=[ChatCompletionChunkChoice(delta=ChatCompletionChunkDelta(content=piece))],
+            )
+
+        prompt_tokens = sum(len(m.get_text().split()) for m in request.messages)
+        completion_tokens = len(words)
+        yield ChatCompletionChunk(
+            model=request.model,
+            choices=[ChatCompletionChunkChoice(delta=ChatCompletionChunkDelta(), finish_reason="stop")],
+            usage=UsageInfo(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
+            ),
+        )
 
     def _generate_simulated_response(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         """Generates simulated vLLM response when local hardware (GTX 1650 4GB VRAM) operates without live GPU daemon."""

@@ -70,20 +70,36 @@ app/core/middleware.py         assigns/reads X-Request-ID, logs
                                 incoming/completed request
       |
       v
+app/core/rate_limit.py         enforce_rate_limit -- in-memory sliding
+enforce_rate_limit()           window per client IP, runs first so even
+      |                        invalid-key attempts get throttled
+      v (limit ok)
+app/core/security.py           verify_api_key -- no-op if GATEWAY_API_KEY
+verify_api_key()                is unset, else requires a matching Bearer
+      |                        token
+      v (auth ok)
 app/api/v1/chat.py  <------->  app/schemas/chat.py
 POST /v1/chat/completions      ChatCompletionRequest, ChatMessage,
 (the HTTP endpoint)            ContentPart, ImageURL -- validates every
-      |                        request BEFORE the function body runs
+      |                        request (incl. size/message-count caps)
+      |                        BEFORE the function body runs
       |                              |
       |                              v (validation fails)
       |                        app/core/exceptions.py
-      |                        formats the 422 error JSON
+      |                        formats the 422 error JSON,
+      |                        records it in app/core/metrics.py
       v
 app/cache/semantic_cache.py <-> app/cache/embeddings.py
 lookup() before calling any     EmbeddingClient -> real OpenAI
-model (HIT -> return early)     /embeddings call
+model (HIT -> return early,     /embeddings call
+skipped entirely if use_rag)
       |
       v (MISS)
+app/rag/augment.py             only if payload.use_rag is true --
+augment_with_context()          retrieves top-k chunks from
+      |                        app/rag/document_store.py, prepends
+      |                        them as a system message
+      v
 app/router/router.py           ModelRouter -- decides which
 determine_route()               model, then orchestrates the call
 execute_with_fallback()
@@ -116,13 +132,18 @@ app/cache/semantic_cache.py    store() -- save this response for
       v
 app/api/v1/chat.py             sets X-Cache-Hit, X-Response-Latency-Ms,
 (back in the endpoint)         X-Estimated-Cost-USD headers, logs,
-                                returns to client
+                                records the request in
+                                app/core/metrics.py, returns to client
       |
       v
 CLIENT RESPONSE
 ```
 
 Read by almost every file above: `app/config.py` (settings singleton loaded from `.env`) and `app/core/logging.py` (shared logger).
+
+`POST /v1/documents` follows the same rate-limit/auth/validation gate, then goes straight to `app/rag/document_store.py`'s `ingest_document()` (no router/provider involved — it's chunk, embed, store).
+
+Set `"stream": true` on a chat request to get Server-Sent Events instead of a single JSON response — each provider yields incremental `ChatCompletionChunk`s (real SSE passthrough for OpenAI/vLLM, simulated word-by-word for mock/GPU-less local dev) via `stream_generate()`. Streaming bypasses the semantic cache entirely (an accumulate-then-cache path added complexity for uncertain benefit) and, since HTTP headers are sent before the body starts, `X-Response-Latency-Ms`/`X-Estimated-Cost-USD` aren't available as headers for a streamed response — that data is logged and recorded in `/metrics` once the stream completes instead. Fallback on a streaming failure only happens *before* the first chunk is sent; once real data has reached the client it can't be un-sent, so a mid-stream failure is not recovered.
 
 ## Milestone Status
 
@@ -142,7 +163,7 @@ Read by almost every file above: `app/config.py` (settings singleton loaded from
 - [x] **Milestone 13 — Security & Guardrails**
 - [x] **Milestone 14 — Evaluation Framework**
 - [x] **Milestone 15 — Observability**
-- [ ] Milestone 16 — Cost & Latency Optimization
+- [x] **Milestone 16 — Cost & Latency Optimization**
 - [ ] Milestone 17 — Docker & Local Multi-Service Deployment
 - [ ] Milestone 18 — Automated Testing & CI/CD
 - [ ] Milestone 19 — GCP / Remote GPU Deployment
@@ -180,7 +201,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Access API docs at `http://localhost:8000/docs`, health check at `http://localhost:8000/health`, or send chat completions to `http://localhost:8000/v1/chat/completions`.
+Access API docs at `http://localhost:8000/docs`, health check at `http://localhost:8000/health`, send chat completions to `http://localhost:8000/v1/chat/completions`, or ingest a document for RAG retrieval via `POST http://localhost:8000/v1/documents` (`{"text": "..."}`).
 
 By default there's no authentication — set `GATEWAY_API_KEY` in `.env` to require `Authorization: Bearer <key>` on every `/v1/*` request (a startup warning is logged if it's left unset). Requests are also capped at `RATE_LIMIT_REQUESTS` per `RATE_LIMIT_WINDOW_SECONDS` per client, and payload size limits (`MAX_MESSAGES_PER_REQUEST`, `MAX_TOTAL_CONTENT_CHARS`, `MAX_DOCUMENT_CHARS`) reject pathologically large requests before they reach a model.
 

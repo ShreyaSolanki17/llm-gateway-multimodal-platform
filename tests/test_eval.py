@@ -30,6 +30,10 @@ class FakeJudgeProvider(BaseLLMProvider):
             usage=UsageInfo(prompt_tokens=10, completion_tokens=10, total_tokens=20),
         )
 
+    async def stream_generate(self, request: ChatCompletionRequest):
+        raise NotImplementedError("FakeJudgeProvider does not support streaming")
+        yield  # pragma: no cover -- makes this an async generator
+
     async def health_check(self) -> bool:
         return True
 

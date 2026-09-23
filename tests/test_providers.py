@@ -86,6 +86,34 @@ async def test_vllm_provider_health_check_false_when_unreachable():
     assert await provider.health_check() is False
 
 
+@pytest.mark.asyncio
+async def test_mock_provider_stream_generate_yields_content_then_usage():
+    provider = MockLLMProvider()
+    request = ChatCompletionRequest(model="mock-gpt-4o", messages=[ChatMessage(role="user", content="Hi")], stream=True)
+
+    chunks = [c async for c in provider.stream_generate(request)]
+    assert len(chunks) > 1
+    assert chunks[-1].choices[0].finish_reason == "stop"
+    assert chunks[-1].usage is not None
+    assert chunks[-1].usage.total_tokens > 0
+
+    full_text = "".join(c.choices[0].delta.content or "" for c in chunks)
+    assert "MockProvider (mock-gpt-4o)" in full_text
+
+
+@pytest.mark.asyncio
+async def test_vllm_provider_stream_simulates_when_unreachable():
+    provider = VLLMProvider(api_base=UNREACHABLE_URL, timeout=0.5)
+    request = ChatCompletionRequest(
+        model="vllm-local", messages=[ChatMessage(role="user", content="Hello vLLM")], stream=True
+    )
+
+    chunks = [c async for c in provider.stream_generate(request)]
+    assert chunks[-1].usage is not None
+    full_text = "".join(c.choices[0].delta.content or "" for c in chunks)
+    assert "Simulated local inference" in full_text
+
+
 def test_chat_endpoint_with_provider_registry(client: TestClient):
     payload = {
         "model": "mock-claude-3-5-sonnet",

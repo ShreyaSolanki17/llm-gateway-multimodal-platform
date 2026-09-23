@@ -1,9 +1,12 @@
-from typing import Dict
+from typing import AsyncIterator, Dict
 from app.providers.base import BaseLLMProvider, ModelMetadata
 from app.schemas.chat import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatCompletionChoice,
+    ChatCompletionChunk,
+    ChatCompletionChunkChoice,
+    ChatCompletionChunkDelta,
     ChatMessage,
     UsageInfo,
 )
@@ -71,6 +74,33 @@ class MockLLMProvider(BaseLLMProvider):
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=total_tokens,
+            ),
+        )
+
+    async def stream_generate(self, request: ChatCompletionRequest) -> AsyncIterator[ChatCompletionChunk]:
+        last_user_msg = next(
+            (m.get_text() for m in reversed(request.messages) if m.role == "user"),
+            "Hello",
+        )
+        content = f"[MockProvider ({request.model})] Responded to: '{last_user_msg}'"
+        words = content.split(" ")
+
+        for i, word in enumerate(words):
+            piece = word if i == 0 else f" {word}"
+            yield ChatCompletionChunk(
+                model=request.model,
+                choices=[ChatCompletionChunkChoice(delta=ChatCompletionChunkDelta(content=piece))],
+            )
+
+        prompt_tokens = sum(len(m.get_text().split()) for m in request.messages)
+        completion_tokens = len(words)
+        yield ChatCompletionChunk(
+            model=request.model,
+            choices=[ChatCompletionChunkChoice(delta=ChatCompletionChunkDelta(), finish_reason="stop")],
+            usage=UsageInfo(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
             ),
         )
 

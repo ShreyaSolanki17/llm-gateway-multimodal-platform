@@ -99,3 +99,26 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionChoice]
     usage: UsageInfo
+
+
+class ChatCompletionChunkDelta(BaseModel):
+    role: Optional[str] = None
+    content: Optional[str] = None
+
+
+class ChatCompletionChunkChoice(BaseModel):
+    index: int = 0
+    delta: ChatCompletionChunkDelta
+    finish_reason: Optional[str] = None
+
+
+class ChatCompletionChunk(BaseModel):
+    """One incremental piece of a streaming response. The final chunk for a
+    request carries finish_reason and usage; earlier chunks carry neither."""
+
+    id: str = Field(default_factory=lambda: f"chatcmpl-{uuid.uuid4().hex[:12]}")
+    object: str = "chat.completion.chunk"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    model: str
+    choices: List[ChatCompletionChunkChoice]
+    usage: Optional[UsageInfo] = None

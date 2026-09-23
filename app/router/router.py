@@ -1,11 +1,11 @@
-from typing import Dict, List, Optional
+from typing import AsyncIterator, Dict, List, Optional
 from app.config import settings
 from app.router.schemas import ComplexityLevel, RequestType, RoutingDecision
 from app.router.analyzer import RequestAnalyzer
 from app.providers.registry import ProviderRegistry, provider_registry
 from app.providers.base import BaseLLMProvider, ModelMetadata
 from app.providers.exceptions import ProviderException
-from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse, UsageInfo
+from app.schemas.chat import ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse, UsageInfo
 from app.core.logging import logger
 
 
@@ -113,6 +113,42 @@ class ModelRouter:
             fallback_provider = self.registry.get_provider_for_model(fallback_model)
             logger.info(f"Fallback routing executing with model '{fallback_model}' via provider '{fallback_provider.name}'")
             return await fallback_provider.generate(fallback_request)
+
+    async def stream_with_fallback(self, request: ChatCompletionRequest) -> AsyncIterator[ChatCompletionChunk]:
+        """Route and stream chunks, with fallback only if the primary fails before
+        yielding its first chunk. Once real chunks have reached the client, the
+        response can't be un-sent, so there's no mid-stream fallback."""
+        decision = self.determine_route(request)
+        logger.info(
+            f"ModelRouter Decision (stream): selected='{decision.selected_model}' ({decision.selected_provider_name}) | "
+            f"complexity={decision.complexity.value} | reason='{decision.reason}'"
+        )
+
+        primary_model = decision.selected_model
+        effective_request = request.model_copy(update={"model": primary_model})
+        provider = self.registry.get_provider_for_model(primary_model)
+
+        primary_stream = provider.stream_generate(effective_request)
+        try:
+            first_chunk = await primary_stream.__anext__()
+        except StopAsyncIteration:
+            return
+        except (ProviderException, Exception) as exc:
+            logger.warning(
+                f"Primary provider '{provider.name}' failed to start stream for model '{primary_model}': {str(exc)}. "
+                f"Initiating fallback routing..."
+            )
+            fallback_model = decision.fallback_model or "default-model"
+            fallback_request = request.model_copy(update={"model": fallback_model})
+            fallback_provider = self.registry.get_provider_for_model(fallback_model)
+            logger.info(f"Fallback routing executing with model '{fallback_model}' via provider '{fallback_provider.name}'")
+            async for chunk in fallback_provider.stream_generate(fallback_request):
+                yield chunk
+            return
+
+        yield first_chunk
+        async for chunk in primary_stream:
+            yield chunk
 
 
 # Global Singleton Router Instance

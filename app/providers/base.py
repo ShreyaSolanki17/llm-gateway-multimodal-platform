@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import AsyncIterator, Dict, List, Optional
 from pydantic import BaseModel, Field
 
-from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
+from app.schemas.chat import ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse
 
 
 class ModelMetadata(BaseModel):
@@ -35,6 +35,12 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def generate(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         """Generate a completion for the incoming request."""
+        pass
+
+    @abstractmethod
+    def stream_generate(self, request: ChatCompletionRequest) -> AsyncIterator[ChatCompletionChunk]:
+        """Yield incremental completion chunks for a streaming request. The final
+        chunk carries finish_reason and usage."""
         pass
 
     @abstractmethod

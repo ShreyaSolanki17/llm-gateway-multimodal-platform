@@ -1,8 +1,9 @@
-from typing import Dict, Optional
+import json
+from typing import AsyncIterator, Dict, Optional
 import httpx
 from app.providers.base import BaseLLMProvider, ModelMetadata
 from app.providers.exceptions import ProviderAPIError, ProviderTimeoutError
-from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
+from app.schemas.chat import ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -64,6 +65,34 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 raise ProviderTimeoutError(self._name, self._timeout)
             except httpx.RequestError as exc:
                 raise ProviderAPIError(self._name, f"Network error: {str(exc)}")
+
+    async def stream_generate(self, request: ChatCompletionRequest) -> AsyncIterator[ChatCompletionChunk]:
+        """Stream chat completion chunks from the OpenAI-compatible endpoint (SSE passthrough)."""
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        url = f"{self._api_base}/chat/completions"
+        payload = request.model_dump(exclude_none=True)
+        payload["stream"] = True
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                async with client.stream("POST", url, json=payload, headers=headers) as response:
+                    if response.status_code != 200:
+                        body = await response.aread()
+                        raise ProviderAPIError(self._name, f"HTTP {response.status_code}: {body.decode(errors='replace')}")
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[len("data: "):].strip()
+                        if data == "[DONE]":
+                            break
+                        yield ChatCompletionChunk(**json.loads(data))
+        except httpx.TimeoutException:
+            raise ProviderTimeoutError(self._name, self._timeout)
+        except httpx.RequestError as exc:
+            raise ProviderAPIError(self._name, f"Network error: {str(exc)}")
 
     async def health_check(self) -> bool:
         url = f"{self._api_base}/models"
