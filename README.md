@@ -56,6 +56,64 @@ A production-oriented LLM Gateway & Multimodal Inference Platform built to demon
 - **Multi-Tool AI Agent**: Focuses on agentic reasoning, planning, tool calling, and memory.
 - **LLM Gateway Platform (This Repository)**: Focuses on LLM infrastructure, API gateway, model serving (vLLM), complexity/cost routing, multimodal input processing, Model Context Protocol (MCP) servers/client, evaluation (LLM-as-a-Judge), observability, security guardrails, semantic caching (pgvector), and production engineering.
 
+## Demo
+
+Real captured output from a local run (`uvicorn app.main:app`) — not hypothetical examples.
+
+**Chat completion**, explicit model override:
+
+```bash
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "mock-gpt-4o", "messages": [{"role": "user", "content": "Explain what a semantic cache does in one sentence."}]}'
+```
+```json
+{"id":"chatcmpl-ae3f5a06fc20","object":"chat.completion","created":1790337010,"model":"mock-gpt-4o","choices":[{"index":0,"message":{"role":"assistant","content":"[MockProvider (mock-gpt-4o)] Responded to: 'Explain what a semantic cache does in one sentence.'"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":13,"total_tokens":22}}
+```
+
+**Streaming** (`"stream": true`) — real Server-Sent Events, one incremental chunk per event:
+
+```
+data: {"id":"chatcmpl-0d5f3829de84","object":"chat.completion.chunk","model":"mock-gpt-4o","choices":[{"index":0,"delta":{"content":"[MockProvider"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-f2d38da1e3da","object":"chat.completion.chunk","model":"mock-gpt-4o","choices":[{"index":0,"delta":{"content":" (mock-gpt-4o)]"},"finish_reason":null}],"usage":null}
+
+... (more chunks) ...
+
+data: [DONE]
+```
+
+**Validation error** — malformed requests are rejected before touching a model:
+
+```bash
+curl http://localhost:8000/v1/chat/completions -d '{"model": "mock-gpt-4o", "messages": []}'
+```
+```json
+{"error":{"message":"Invalid request payload","type":"validation_error","details":[{"type":"too_short","loc":["body","messages"],"msg":"List should have at least 1 item after validation, not 0"}],"request_id":"7e631854-a264-4bbe-b2e0-03160617e3b7"}}
+```
+`HTTP 422`
+
+**Graceful degradation, captured live**: while gathering these examples, the real `OPENAI_API_KEY` configured for this run had exhausted its OpenAI credits. Ingesting a document for RAG (which needs a real embedding call) hit that failure — and the gateway didn't crash, it logged a warning and returned a clean response with zero chunks stored, exactly per the degrade-to-miss design in `app/cache/semantic_cache.py` and `app/rag/document_store.py`:
+
+```bash
+curl http://localhost:8000/v1/documents -d '{"text": "Our refund policy allows returns within 30 days."}'
+```
+```json
+{"document_id":"95babdffdff14281a109497d5172f650","chunks_created":0}
+```
+`HTTP 201` — the server log for this request: `WARNING: Semantic cache store skipped, embedding failed: Provider 'openai-embeddings' returned error: HTTP 429: insufficient_quota`
+
+**Metrics** (`GET /metrics`, Prometheus text format) after a few requests:
+
+```
+gateway_requests_total 2
+gateway_cache_hits_total 0
+gateway_cache_misses_total 2
+gateway_cost_usd_total 0.000218
+gateway_latency_ms_avg 2.8
+gateway_requests_by_model_total{model="mock-gpt-4o"} 2
+```
+
 ## Request Lifecycle
 
 How a single `POST /v1/chat/completions` call actually flows through the current implementation, file by file:
@@ -168,9 +226,9 @@ Set `"stream": true` on a chat request to get Server-Sent Events instead of a si
 - [x] **Milestone 16 — Cost & Latency Optimization**
 - [ ] Milestone 17 — Docker & Local Multi-Service Deployment
 - [x] **Milestone 18 — Automated Testing & CI/CD**
-- [ ] Milestone 19 — GCP / Remote GPU Deployment
+- [x] **Milestone 19 — GCP / Remote GPU Deployment** (scripts written & documented, not live-deployed — no GCP billing account in this environment)
 - [ ] Milestone 20 — Optional A2A Interoperability
-- [ ] Milestone 21 — Final Documentation & Demo
+- [x] **Milestone 21 — Final Documentation & Demo**
 
 ## Getting Started
 
@@ -195,6 +253,9 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Copy the example env file and fill in your own values (OPENAI_API_KEY, etc.)
+cp .env.example .env
 ```
 
 ### Running the Application
@@ -239,6 +300,28 @@ tools = await client.list_tools()                                  # ["query_dat
 rows = await client.call_tool("query_database", {"sql": "SELECT 1"})
 ```
 
+### Running with Docker Compose
+
+`docker-compose.yml` brings up the gateway (built from `Dockerfile`) plus a `pgvector/pgvector` Postgres container:
+
+```bash
+docker compose up --build
+```
+
+The Postgres container isn't wired into the app yet — the semantic cache, RAG document store, and MCP PostgreSQL server all still use their in-memory/SQLite stand-ins (each marked with a `ponytail: swap for pgvector` comment). It's there so the infrastructure exists ahead of that swap. `docker compose down -v` tears everything down including the named volumes.
+
+### Deploying to GCP (Optional)
+
+Scripts in `deploy/gcp/` document (but don't automatically run) a two-piece cloud deployment: `deploy-gateway-cloudrun.sh` builds and deploys the CPU-only gateway to Cloud Run (serverless, pay-per-request), and `deploy-vllm-gpu-vm.sh` provisions a real GPU-backed VM running vLLM — the genuine version of what `VLLM_SIMULATE_LOCAL` fakes locally on hardware without enough VRAM.
+
+**These are not free** — a T4 GPU VM runs roughly $0.35–$0.55/hr in `us-central1` while it's up; Cloud Run has a free tier but bills per request beyond it. Both scripts print the teardown command to stop billing once you're done. Requires the `gcloud` CLI authenticated against a GCP project with billing enabled:
+
+```bash
+export GCP_PROJECT_ID=your-project-id
+./deploy/gcp/deploy-gateway-cloudrun.sh   # CPU-only gateway → Cloud Run
+./deploy/gcp/deploy-vllm-gpu-vm.sh        # real vLLM on a GPU VM (optional)
+```
+
 ### Running Tests
 
 ```bash
@@ -248,3 +331,12 @@ pytest
 ### Continuous Integration
 
 `.github/workflows/ci.yml` runs on every push/PR to `main`: a `test` job (installs `requirements.txt`, runs the full `pytest` suite) and a `docker-build` job (builds the image from the `Dockerfile`). The latter also gives automated verification of the Docker setup on every push, independent of whether Docker is running on any given contributor's machine locally.
+
+## Known Limitations & Design Tradeoffs
+
+Being upfront about what's real versus simulated, and what's genuinely finished versus written-but-unverified:
+
+- **vLLM is simulated by default** (`VLLM_SIMULATE_LOCAL=true`) — this project was built on a GTX 1650 (4GB VRAM), not enough to run a real model locally. `vllm_provider.py` still implements a real HTTP/SSE client for an actual vLLM server; `deploy/gcp/deploy-vllm-gpu-vm.sh` provisions genuine GPU hardware to remove the simulation, but that script has not been executed in this environment (no GCP billing account available here).
+- **Docker Compose is written and syntax-validated, not build/run-verified** — the Docker daemon wasn't available in this development environment. The `docker-build` CI job (Milestone 18) now builds it on every push, which is real, automated verification going forward — but it hasn't been run interactively end-to-end (`docker compose up` + a live curl) by the person who wrote it.
+- **The semantic cache, RAG document store, and MCP PostgreSQL server are in-memory/SQLite stand-ins**, not the real pgvector/Postgres backend the architecture diagram shows. Each is marked with a `ponytail: swap at Milestone 17` comment and shares the same interface a real swap would need — the Postgres+pgvector container in `docker-compose.yml` exists, but nothing in the app code talks to it yet.
+- **The example OpenAI-dependent output in the Demo section above shows a real failure, not a real success** — the API key used had no remaining credits when these examples were captured, so the semantic cache/RAG embedding calls degrade to a graceful miss rather than demonstrating a cache hit or real retrieval. The code path for a real hit is exercised by the test suite (with a fake embedding client), just not by this live capture.
