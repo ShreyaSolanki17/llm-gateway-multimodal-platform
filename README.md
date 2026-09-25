@@ -1,5 +1,7 @@
 # LLM Gateway & Multimodal Inference Platform
 
+[![CI](https://github.com/ShreyaSolanki17/llm-gateway-multimodal-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ShreyaSolanki17/llm-gateway-multimodal-platform/actions/workflows/ci.yml)
+
 A production-oriented LLM Gateway & Multimodal Inference Platform built to demonstrate model serving, routing, multimodal inference, MCP interoperability, evaluation, observability, security, caching, and production deployment engineering.
 
 ## Target Architecture Overview
@@ -165,7 +167,7 @@ Set `"stream": true` on a chat request to get Server-Sent Events instead of a si
 - [x] **Milestone 15 — Observability**
 - [x] **Milestone 16 — Cost & Latency Optimization**
 - [ ] Milestone 17 — Docker & Local Multi-Service Deployment
-- [ ] Milestone 18 — Automated Testing & CI/CD
+- [x] **Milestone 18 — Automated Testing & CI/CD**
 - [ ] Milestone 19 — GCP / Remote GPU Deployment
 - [ ] Milestone 20 — Optional A2A Interoperability
 - [ ] Milestone 21 — Final Documentation & Demo
@@ -242,3 +244,7 @@ rows = await client.call_tool("query_database", {"sql": "SELECT 1"})
 ```bash
 pytest
 ```
+
+### Continuous Integration
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`: a `test` job (installs `requirements.txt`, runs the full `pytest` suite) and a `docker-build` job (builds the image from the `Dockerfile`). The latter also gives automated verification of the Docker setup on every push, independent of whether Docker is running on any given contributor's machine locally.
